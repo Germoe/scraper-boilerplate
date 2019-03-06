@@ -26,7 +26,7 @@ requirements: test_environment
 	$(PYTHON_INTERPRETER) -m pip install -r requirements.txt
 
 ## Make Dataset
-data: requirements
+zipcodes: requirements
 	$(PYTHON_INTERPRETER) src/data/get_zipcodes.py
 
 ## Make Dataset
