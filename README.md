@@ -3,6 +3,8 @@ Scraper
 
 This is a boilerplate for the cookie cutter data-science template that adds a rotating IP scraper based on Python
 
+NOTE: You'll need to setup a zipcode db with the [zipcode](https://github.com/buckmaxwell/zipcode) package to make use of the `make zipcodes` command. Otherwise you can use precreated zipcodes that cover the US map at a radius of 50, 75 and 100 miles.
+
 Project Organization
 ------------
 
