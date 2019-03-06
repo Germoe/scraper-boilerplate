@@ -134,25 +134,27 @@ def main(input_filepath=None, output_filepath='./data/'):
 
     us = Zipcodes(zipcodes_list('all', res_type='objects'))
     rad = 100
-    us_zip_filtered_100 = us.filter_by_rad(rad=rad)
-    us_zip_filtered_100 = us_zip_filtered_100.set_index('zip')
-    us_zip_filtered_100.to_csv(output_filepath + 'interim/zipcodes_' + str(rad) + '.csv', encoding='utf-8')
-    
-    rad = 75
-    us_zip_filtered_75 = us.filter_by_rad(rad=rad)
-    us_zip_filtered_75 = us_zip_filtered_75.set_index('zip')
-    us_zip_filtered_75.to_csv(output_filepath + 'interim/zipcodes_' + str(rad) + '.csv', encoding='utf-8')
-    
-    rad = 50
-    us_zip_filtered_50 = us.filter_by_rad(rad=rad)
-    us_zip_filtered_50 = us_zip_filtered_50.set_index('zip')
-    us_zip_filtered_50.to_csv(output_filepath + 'interim/zipcodes_' + str(rad) + '.csv', encoding='utf-8')
+    if rad:
+        path = './data/interim/zipcodes_' + str(rad) + '.csv'
+    else:
+        path = './data/interim/zipcodes_100.csv'
+    # Check date of csv creation or modification
+    try:
+        new_zip_codes = datetime.fromtimestamp(os.stat(path)[8]) > datetime.now() - timedelta(days=180)
+    except:
+        new_zip_codes = False
 
-    us_zip_combined = pd.concat([us_zip_filtered_100, us_zip_filtered_50]) \
-                        .reset_index() \
-                        .drop_duplicates(subset='zip', keep='first') \
-                        .set_index('zip')
-    us_zip_combined.to_csv(output_filepath + 'interim/zipcodes_combined.csv', encoding='utf-8')
+    if not new_zip_codes:
+        us_zip_filtered = us.filter_by_rad(rad=rad)
+        us_zip_filtered = us_zip_filtered.set_index('zip')
+        us_zip_filtered.to_csv(output_filepath + 'interim/zipcodes_' + str(rad) + '.csv', encoding='utf-8')
+
+    # To combine multiple radi zipcode maps
+    # us_zip_combined = pd.concat([us_zip_filtered_100, us_zip_filtered_50]) \
+    #                     .reset_index() \
+    #                     .drop_duplicates(subset='zip', keep='first') \
+    #                     .set_index('zip')
+    # us_zip_combined.to_csv(output_filepath + 'interim/zipcodes_combined.csv', encoding='utf-8')
 
     logger = logging.getLogger(__name__)
     logger.info('making final data set from raw data')
