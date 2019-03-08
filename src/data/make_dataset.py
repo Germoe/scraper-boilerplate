@@ -133,8 +133,8 @@ def main(input_filepath=None, output_filepath='./data/'):
         cleaned data ready to be analyzed (saved in ../processed).
     """
     # Set a limit of scrapes - Batching
-    scrape_limit = int(getRandomArbitrary(100,500))
-
+    scrape_limit = int(getRandomArbitrary(10,100))
+    print('This round we\'ll fetch stores at {} zip codes'.format(scrape_limit))
     # Read in proxies
     ip_territory = 'US'
     if ip_territory:
@@ -192,7 +192,7 @@ def main(input_filepath=None, output_filepath='./data/'):
             break
         else:
             counter += 1
-        time.sleep(getRandomArbitrary(1,10))
+        time.sleep(getRandomArbitrary(10,20))
     print('done')
 
 
