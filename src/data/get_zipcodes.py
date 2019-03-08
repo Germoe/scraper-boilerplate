@@ -3,6 +3,8 @@ import click
 import logging
 import pprint
 import json
+import os
+from datetime import datetime, timedelta
 from pathlib import Path
 from dotenv import find_dotenv, load_dotenv
 # Scraping and IP rotation
@@ -32,7 +34,6 @@ def zipcodes_list(st_items, res_type='strings'):
         if st_items == 'all':
             st_items = ['0','1','2','3','4','5','6','7','8','9']
             zc_objects = [n for i in st_items for n in zipcode.islike(str(i))]
-            print(len(zc_objects))
         else:
             zc_objects = zipcode.islike(st_items)
     # If st_items is a list of zipcode strings.
@@ -117,7 +118,6 @@ class Zipcodes():
                 other_zipcodes.add(i)
             print_progress(counter, row.zip, total_zipcodes, interval=1000)
             counter += 1
-        print(len(other_zipcodes))
         new_df = pd.DataFrame(unique_zipcodes)
         return new_df
 
@@ -132,12 +132,9 @@ def main(input_filepath=None, output_filepath='./data/'):
         cleaned data ready to be analyzed (saved in ../processed).
     """
 
-    us = Zipcodes(zipcodes_list('all', res_type='objects'))
-    rad = 100
-    if rad:
-        path = './data/interim/zipcodes_' + str(rad) + '.csv'
-    else:
-        path = './data/interim/zipcodes_100.csv'
+    rad = 50
+    path = './data/interim/zipcodes_' + str(rad) + '.csv'
+
     # Check date of csv creation or modification
     try:
         new_zip_codes = datetime.fromtimestamp(os.stat(path)[8]) > datetime.now() - timedelta(days=180)
@@ -145,6 +142,7 @@ def main(input_filepath=None, output_filepath='./data/'):
         new_zip_codes = False
 
     if not new_zip_codes:
+        us = Zipcodes(zipcodes_list('all', res_type='objects'))
         us_zip_filtered = us.filter_by_rad(rad=rad)
         us_zip_filtered = us_zip_filtered.set_index('zip')
         us_zip_filtered.to_csv(output_filepath + 'interim/zipcodes_' + str(rad) + '.csv', encoding='utf-8')

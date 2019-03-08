@@ -30,6 +30,10 @@ zipcodes: requirements
 	$(PYTHON_INTERPRETER) src/data/get_zipcodes.py
 
 ## Make Dataset
+proxies: requirements
+	$(PYTHON_INTERPRETER) src/data/get_proxies.py
+
+## Make Dataset
 no_req_data:
 	$(PYTHON_INTERPRETER) src/data/make_dataset.py
 

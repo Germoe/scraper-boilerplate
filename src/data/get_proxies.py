@@ -46,7 +46,7 @@ def scrape_proxies(url, xpath_tbody_tr, xpath_scrape_condition, xpath_ip, xpath_
     driver.get(url)
     try:
         next_page = True
-        counter = 0
+        counter = 1
         while next_page:
             element = WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.XPATH, xpath_tbody_tr))
@@ -59,21 +59,19 @@ def scrape_proxies(url, xpath_tbody_tr, xpath_scrape_condition, xpath_ip, xpath_
                     continue
                 #Grabbing IP and corresponding PORT
                 proxy = ":".join([i.find_element_by_xpath(xpath_ip).text, i.find_element_by_xpath(xpath_port).text])
-                print(proxy)
                 proxies.add(proxy)
             try:
                 if element.find_element_by_xpath(xpath_next_disable_condition):
                     next_page = True
             except:
                 next_page = False
-            print(next_page)
             if next_page:
                 if driver and element:
-                    print('element exists')
                     driver.find_element_by_xpath(xpath_next_a).click()
                 else:
-                    print('element does not exist')
-                print(element)
+                    print('End of Site')
+            counter += 1
+            print('Next Page: ', counter)
     finally:
         driver.quit()
     return proxies
@@ -103,7 +101,6 @@ def get_proxies(territory=None):
 
     # remove empty values
     proxies.discard('')
-    print(proxies)
 
     return proxies
 
@@ -117,7 +114,7 @@ def main(input_filepath=None, output_filepath='./data/'):
     """
 
     # Round Robin proxy rotation
-    territory = 'US'
+    territory = None
     if territory:
         path = './data/interim/proxies_' + territory + '.csv'
     else:
