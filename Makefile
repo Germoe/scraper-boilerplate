@@ -34,7 +34,7 @@ proxies: requirements
 	$(PYTHON_INTERPRETER) src/scraper/get_proxies.py $(options)
 
 scraper: requirements
-	$(PYTHON_INTERPRETER) src/scraper/scrape_data.py $(options)
+	$(PYTHON_INTERPRETER) src/scraper/scrape_data.py $(target) $(scrapetype) $(options)
 
 ## Make Dataset
 data: requirements

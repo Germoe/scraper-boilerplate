@@ -3,6 +3,10 @@ from uszipcode import SearchEngine, Zipcode
 import random
 from itertools import cycle
 import os
+import re
+import requests as req
+import traceback
+import time
 
 # ------ Utils ------
 
@@ -98,6 +102,7 @@ class Scraper():
         if not force and len(proxies) < 5:
             raise Exception('You have less than 5 valid proxies this could create issues. Consider not limiting your proxies to a territory. You can ignore this Exception by using `--force`')
         random.shuffle(proxies)
+        self.num_proxies = len(proxies)
         self.proxy_pool = cycle(proxies)
 
         lower_limit_per_proxy = 50
@@ -125,6 +130,31 @@ class Scraper():
             self.min_wait_failed = 30
             self.max_wait_failed = 60
 
+def check_proxy(proxy, proxy_pool, num_proxies, timeout, counter=0):
+    '''
+        Make sure to input proxies in the following format
+        proxies = {
+            "http": 'http://104.199.166.104:8800',
+            "https": 'http://104.199.166.104:8800'
+        }
+    '''
+    proxies_settings = {"http": proxy, "https": proxy}
+    url = 'https://httpbin.org/ip'
+    print('checking proxy: ', proxy)
+    try:
+        response = req.get(url,proxies=proxies_settings, timeout=timeout)
+        print(response.json())
+        return proxies_settings, timeout
+    except:
+        print('proxy unresponsive trying next')
+        counter += 1
+        if counter >= num_proxies:
+            print('Timeout extended as Proxies are slow to respond.')
+            timeout += 15
+            counter = 0
+        return check_proxy(proxy=next(proxy_pool), proxy_pool=proxy_pool, num_proxies=num_proxies, counter=counter, timeout=timeout)
+
+
 class ZipcodeScraper(Scraper):
     #constructor
     def __init__(self, target):
@@ -135,19 +165,73 @@ class ZipcodeScraper(Scraper):
 
     def init_zipcodes(self, zipcode_csv):
         # This function reads in the zipcodes and removes those that have already been scraped.
-        self.zipcodes = pd.read_csv(zipcode_csv,
+        zip_codes = pd.read_csv(zipcode_csv,
                                 dtype={'zip': object, 'lat': float, 'lng': float, 'type': object})
         # Create dir if not exists
-        dir_path = './data/interim/' + target
+        self.dir_path = './data/interim/' + self.target
         try:
-            Path(dir_path).mkdir(parents=True)
+            Path(self.dir_path).mkdir(parents=True)
         except:
             pass
         # Get filenames of already scraped zipcodes and filter the dataframe
-        target_filenames = os.listdir(dir_path)
-        scraped_zip_codes = [extract_zip_code(filename, target) for filename in target_filenames]
-        zip_codes_filtered = zip_codes.loc[~zip_codes['zip'].isin(scraped_zip_codes),:]
-        return zip_codes_filtered
+        target_filenames = os.listdir(self.dir_path)
+        scraped_zip_codes = [extract_zip_code(filename, self.target) for filename in target_filenames]
+        self.zip_codes = zip_codes.loc[~zip_codes['zip'].isin(scraped_zip_codes),:]
+        return self.zip_codes
+
+    def wait_seconds(self):
+        seconds = getRandomArbitrary(self.min_wait,self.max_wait)
+        print('Success: Wait for {}'.format(seconds))
+        time.sleep(seconds)
+
+    def failed_wait_seconds(self):
+        seconds = getRandomArbitrary(self.min_wait_failed,self.max_wait_failed)
+        print('Failed: wait for {}'.format(seconds))
+        time.sleep(seconds)
+    
+    def scrape(self, zip_scraper, timeout=3, max_retries=10):
+        # Shuffle the zip codes to lower probability of pattern recognition
+        zip_codes_shuffled = self.zip_codes.sample(frac=1)
+        counter = 0
+        for row in zip_codes_shuffled.iterrows():
+            row_values = row[1]
+            zip_code = row_values['zip']
+            print("Request for zip code {}".format(zip_code))
+            num_retries = 0
+            for retry in range(0,max_retries):
+                # Get a proxy from the pool
+                self.proxy = next(self.proxy_pool)
+                print("with proxy {}".format(self.proxy))
+                proxies_settings, timeout = check_proxy(proxy=self.proxy, proxy_pool=self.proxy_pool, num_proxies=self.num_proxies, timeout=timeout)
+                try:
+                    scrape_timeout = timeout + 5
+                    path = self.dir_path + '/' + self.target + '_' + zip_code + '.csv'
+                    success = zip_scraper(zip_code, path=path, radius=self.radius, proxies=proxies_settings, timeout=scrape_timeout)
+                    break
+                except req.exceptions.ConnectionError:
+                    print("xxxxxxxxxxxx  Connection refused  xxxxxxxxxxxx")
+                    self.failed_wait_seconds()
+                    num_retries += 1
+                    print("Retry #{}".format(num_retries))
+                except:
+                    '''
+                        Most free proxies will often get connection errors. You will have retry the entire request using another proxy to work.
+                        We will just skip retries as its beyond the scope of this tutorial and we are only downloading a single url
+                    '''
+                    print(traceback.format_exc())
+                    self.failed_wait_seconds()
+                    num_retries += 1
+                    print("Retry #{}".format(num_retries))
+            # wait until you get next Zip Code
+            if counter > self.scrape_limit:
+                break
+            else:
+                counter += 1
+            if success:
+                self.wait_seconds()
+            else:
+                print(success)
+                print('No Success for ZIP {}: Continue to next with no wait.'.format(zip_code))
 
 def extract_zip_code(filename, target):
     zip_code = re.search('(?<=' + target + '_)' + '[0-9]*' + '(?!>.csv)', filename)

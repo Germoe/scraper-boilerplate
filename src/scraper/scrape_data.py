@@ -24,7 +24,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 # Import the Scrape Function defined in scraper.py
-from scraper import scrape_func
+from scraper import zip_scraper
 
 from models import ZipcodeScraper
 
@@ -38,42 +38,19 @@ def print_progress(counter, zip_code, total, interval=500):
 # Set indentation level of pretty printer
 pp = pprint.PrettyPrinter(indent=2)
 
-def check_proxy(proxy, proxy_pool, num_proxies, timeout, counter=0):
-    '''
-        Make sure to input proxies in the following format
-        proxies = {
-            "http": 'http://104.199.166.104:8800',
-            "https": 'http://104.199.166.104:8800'
-        }
-    '''
-    proxies_settings = {"http": proxy, "https": proxy}
-    url = 'https://httpbin.org/ip'
-    try:
-        response = req.get(url,proxies=proxies_settings, timeout=timeout)
-        print(response.json())
-        return proxies_settings, timeout
-    except:
-        print('proxy unresponsive trying next')
-        counter += 1
-        if counter >= num_proxies:
-            print('Timeout extended as Proxies are slow to respond.')
-            timeout += 15
-            counter = 0
-        return check_proxy(proxy=next(proxy_pool), proxy_pool=proxy_pool, num_proxies=num_proxies, counter=counter, timeout=timeout)
-
 @click.command()
+@click.argument('target', type=str) # Target is the identifier for the scraped url, destination directory and name (e.g. walmart)
+@click.argument('scrape_type', type=str) # Scraper Type defines the iteration unit or type of scraper that will be used (e.g. zipcode)
 @click.option('--ip_territory',default=None,type=str)
 @click.option('--ip_port',default=None,type=str) # This option is not tied to any action
 @click.option('--scrape_speed',default='regular',type=str)
 @click.option('--force',is_flag=True)
-def main(ip_territory, ip_port, scrape_speed, force=False):
+def main(target, scrape_type, ip_territory, ip_port, scrape_speed, force=False):
     """ Runs data processing scripts to turn raw data from (../raw) into
         cleaned data ready to be analyzed (saved in ../processed).
     """
-    target = 'walmart' # Set Target
-    scrape_type = 'zipcode' # Set Scraper Type
     if scrape_type == 'zipcode':
-        scraper = ZipcodeScraper()
+        scraper = ZipcodeScraper(target)
         radius = 100 # Set Scrape Radius
         scraper.set_radius(radius)
     # Read in proxies
@@ -88,59 +65,11 @@ def main(ip_territory, ip_port, scrape_speed, force=False):
     if scrape_type == 'zipcode':
         # Read in Zip Codes. Zipcodes csv need to have columns = ['zip','lat','lng','type']
         if radius:
-            zip_codes_path = './data/zip_codes/zipcodes_' + str(radius) + '.csv'
+            zip_codes_file = './data/zip_codes/zipcodes_' + str(radius) + '.csv'
         else:
-            zip_codes_path = './data/zip_codes/zipcodes_100.csv'
-        scraper.init_zipcodes(zip_codes_path)
-        # Shuffle the zip codes to lower probability of pattern recognition
-        zip_codes_shuffled = zip_codes.sample(frac=1)
-        counter = 0
-        timeout = 3
-        for row in zip_codes_shuffled.iterrows():
-            row_values = row[1]
-            zip_code = row_values['zip']
-            print("Request for zip code {}".format(zip_code))
-            num_retries = 0
-            max_retries = 3
-            for retry in range(0,max_retries):
-                # Get a proxy from the pool
-                proxy = next(proxy_pool)
-                print("with proxy {}".format(proxy))
-                proxies_settings, timeout = check_proxy(proxy=proxy, proxy_pool=proxy_pool, num_proxies=len(proxies), timeout=timeout)
-                try:
-                    scrape_timeout = timeout + 5
-                    path = dir_path + '/' + target + '_' + zip_code + '.csv'
-                    success = scrape_func(zip_code, path=path, radius=radius, proxies=proxies_settings, timeout=scrape_timeout)
-                    break
-                except req.exceptions.ConnectionError:
-                    print("xxxxxxxxxxxx  Connection refused  xxxxxxxxxxxx")
-                    seconds = getRandomArbitrary(min_wait_failed,max_wait_failed)
-                    print('wait for {}'.format(seconds))
-                    time.sleep(seconds)
-                    num_retries += 1
-                    print("Retry #{}".format(num_retries))
-                except:
-                    '''
-                        Most free proxies will often get connection errors. You will have retry the entire request using another proxy to work.
-                        We will just skip retries as its beyond the scope of this tutorial and we are only downloading a single url
-                    '''
-                    print(traceback.format_exc())
-                    seconds = getRandomArbitrary(min_wait_failed,max_wait_failed)
-                    print('Failed: wait for {}'.format(seconds))
-                    time.sleep(seconds)
-                    num_retries += 1
-                    print("Retry #{}".format(num_retries))
-            # wait until you get next Zip Code
-            if counter > scrape_limit:
-                break
-            else:
-                counter += 1
-            if success:
-                seconds = getRandomArbitrary(min_wait,max_wait)
-                print('Success: Wait for {}'.format(seconds))
-                time.sleep(seconds)
-            else:
-                print('No Success: Continue to next with no wait.')
+            zip_codes_file = './data/zip_codes/zipcodes_100.csv'
+        scraper.init_zipcodes(zip_codes_file)
+        scraper.scrape(zip_scraper)
     print('done')
 
 
