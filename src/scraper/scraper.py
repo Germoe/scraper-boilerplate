@@ -2,10 +2,11 @@ import requests as req
 from pathlib import Path
 import pandas as pd
 
-def zip_scraper(zip_code, path, proxies, timeout, radius=100):
+def walmart_scraper(zip_code, path, proxies, timeout, radius):
     '''
         Add your custom Scrape function here. As an example you can find the scrape function to get Walmart Stores across the US.
-        This example will scrape all Walmarts (does not include Sam's Club)
+        This example will scrape all Walmarts (does not include Sam's Club). You can fully customize this function.
+        It's only necessary that you return `False` for a failed or skipped scraping and `True` for a successful scraping.
     '''
     stores = []
     this = Path(path)

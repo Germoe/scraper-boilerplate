@@ -129,6 +129,9 @@ class Scraper():
             self.max_wait = 30
             self.min_wait_failed = 30
             self.max_wait_failed = 60
+    
+    def init_scraper(self,scrape_func):
+        self.scrape_func = scrape_func
 
 def check_proxy(proxy, proxy_pool, num_proxies, timeout, counter=0):
     '''
@@ -189,7 +192,7 @@ class ZipcodeScraper(Scraper):
         print('Failed: wait for {}'.format(seconds))
         time.sleep(seconds)
     
-    def scrape(self, zip_scraper, timeout=3, max_retries=10):
+    def scrape(self, timeout=3, max_retries=10):
         # Shuffle the zip codes to lower probability of pattern recognition
         zip_codes_shuffled = self.zip_codes.sample(frac=1)
         counter = 0
@@ -206,7 +209,7 @@ class ZipcodeScraper(Scraper):
                 try:
                     scrape_timeout = timeout + 5
                     path = self.dir_path + '/' + self.target + '_' + zip_code + '.csv'
-                    success = zip_scraper(zip_code, path=path, radius=self.radius, proxies=proxies_settings, timeout=scrape_timeout)
+                    success = self.scrape_func(zip_code, path=path, radius=self.radius, proxies=proxies_settings, timeout=scrape_timeout)
                     break
                 except req.exceptions.ConnectionError:
                     print("xxxxxxxxxxxx  Connection refused  xxxxxxxxxxxx")

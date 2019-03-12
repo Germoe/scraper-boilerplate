@@ -24,8 +24,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 # Import the Scrape Function defined in scraper.py
-from scraper import zip_scraper
-
+from scraper import walmart_scraper
 from models import ZipcodeScraper
 
 ## ----------------------- Utils ------------------------
@@ -40,16 +39,16 @@ pp = pprint.PrettyPrinter(indent=2)
 
 @click.command()
 @click.argument('target', type=str) # Target is the identifier for the scraped url, destination directory and name (e.g. walmart)
-@click.argument('scrape_type', type=str) # Scraper Type defines the iteration unit or type of scraper that will be used (e.g. zipcode)
+@click.argument('scrapetype', type=str) # Scraper Type defines the iteration unit or type of scraper that will be used (e.g. zipcode)
 @click.option('--ip_territory',default=None,type=str)
 @click.option('--ip_port',default=None,type=str) # This option is not tied to any action
 @click.option('--scrape_speed',default='regular',type=str)
 @click.option('--force',is_flag=True)
-def main(target, scrape_type, ip_territory, ip_port, scrape_speed, force=False):
+def main(target, scrapetype, ip_territory, ip_port, scrape_speed, force=False):
     """ Runs data processing scripts to turn raw data from (../raw) into
         cleaned data ready to be analyzed (saved in ../processed).
     """
-    if scrape_type == 'zipcode':
+    if scrapetype == 'zipcode':
         scraper = ZipcodeScraper(target)
         radius = 100 # Set Scrape Radius
         scraper.set_radius(radius)
@@ -62,14 +61,15 @@ def main(target, scrape_type, ip_territory, ip_port, scrape_speed, force=False):
     scrape_limit = scraper.init_proxies(ip_path, force)
     scraper.set_speed(scrape_speed)
     print('Scrape Limit: {} units'.format(scrape_limit))
-    if scrape_type == 'zipcode':
+    if scrapetype == 'zipcode':
         # Read in Zip Codes. Zipcodes csv need to have columns = ['zip','lat','lng','type']
         if radius:
             zip_codes_file = './data/zip_codes/zipcodes_' + str(radius) + '.csv'
         else:
             zip_codes_file = './data/zip_codes/zipcodes_100.csv'
         scraper.init_zipcodes(zip_codes_file)
-        scraper.scrape(zip_scraper)
+        scraper.init_scraper(walmart_scraper)
+        scraper.scrape()
     print('done')
 
 
