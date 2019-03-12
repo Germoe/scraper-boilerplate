@@ -31,10 +31,28 @@ def print_progress(counter, zipcode, total, interval=500):
 # Set indentation level of pretty printer
 pp = pprint.PrettyPrinter(indent=2)
 
-# Set a special ip and port for scraping of proxies
-ip_port = None
+def check_proxy(proxy, timeout=3):
+    '''
+        Make sure that input proxy are responsive
+    '''
+    proxies = {"http": proxy, "https": proxy}
+    url = 'https://httpbin.org/ip'
+    try:
+        response = req.get(url,proxies=proxies, timeout=timeout)
+        print(response.json())
+        return True
+    except:
+        return False
 
-def scrape_proxies(url, xpath_tbody_tr, xpath_scrape_condition, xpath_ip, xpath_port, xpath_next_disable_condition=None, xpath_next_a=None):
+def validate_proxies(proxies):
+    valid_proxies = []
+    for proxy in proxies:
+        if check_proxy(proxy):
+            valid_proxies.append(proxy)
+    return valid_proxies
+
+
+def scrape_proxies(url, xpath_tbody_tr, xpath_scrape_condition, xpath_ip, xpath_port, xpath_next_disable_condition=None, xpath_next_a=None, timeout=10, ip_port=None):
     # create Proxy Set
     proxies = set()
     # initialize webdriver
@@ -43,7 +61,12 @@ def scrape_proxies(url, xpath_tbody_tr, xpath_scrape_condition, xpath_ip, xpath_
         # Checks if a specific ip and port were set to fetch proxies otherwise uses computer credentials
         options.add_argument('--proxy-server=' + ip_port)
     driver = webdriver.Chrome(chrome_options=options)
-    driver.get(url)
+    driver.set_page_load_timeout(timeout)
+    try:
+        driver.get(url)
+    except:
+        print('timeout')
+        return proxies
     try:
         next_page = True
         counter = 1
@@ -68,34 +91,38 @@ def scrape_proxies(url, xpath_tbody_tr, xpath_scrape_condition, xpath_ip, xpath_
             if next_page:
                 if driver and element:
                     driver.find_element_by_xpath(xpath_next_a).click()
-                else:
-                    print('End of Site')
-            counter += 1
-            print('Next Page: ', counter)
+                    counter += 1
+                    print('Next Page: ', counter)
+            else:
+                print('End of Site')
     finally:
         driver.quit()
     return proxies
 
 # Utility for Random Proxies
-def get_proxies(territory=None):
+def get_proxies(ip_territory=None, ip_port=None):
     proxies = set()
     # free-proxy-list
-    if not territory:
+    if not ip_territory or ip_territory=='all':
         url = 'https://free-proxy-list.net/'
-    elif territory == 'US':
+    elif ip_territory == 'US':
         url = 'https://www.us-proxy.org/'
-    proxies_free_proxy_set = scrape_proxies(url, xpath_tbody_tr='//tbody/tr', xpath_scrape_condition='.//td[7][contains(text(),"yes")]', xpath_ip='.//td[1]', xpath_port='.//td[2]', xpath_next_disable_condition="//li[@id='proxylisttable_next'][not(contains(@class, 'disabled'))]", xpath_next_a="//li[@id='proxylisttable_next']/a")
+    proxies_free_proxy_set = scrape_proxies(url, xpath_tbody_tr='//tbody/tr', xpath_scrape_condition='.//td[7][contains(text(),"yes")]', xpath_ip='.//td[1]', xpath_port='.//td[2]', xpath_next_disable_condition="//li[@id='proxylisttable_next'][not(contains(@class, 'disabled'))]", xpath_next_a="//li[@id='proxylisttable_next']/a", ip_port=ip_port)
     proxies.update(proxies_free_proxy_set)
     # proxynove.com
-    if not territory:
+    if not ip_territory:
         url = 'https://www.proxynova.com/proxy-server-list/'
-        proxies_hidemyname = scrape_proxies(url, xpath_tbody_tr='//tbody/tr', xpath_scrape_condition='.//td[7]/span[contains(text(),"Elite")]', xpath_ip='.//td[1]', xpath_port='.//td[2]')
+        proxies_hidemyname = scrape_proxies(url, xpath_tbody_tr='//tbody/tr', xpath_scrape_condition='.//td[7]/span[contains(text(),"Elite")]', xpath_ip='.//td[1]', xpath_port='.//td[2]', ip_port=ip_port)
         proxies.update(proxies_hidemyname)
 
     # proxy.rudnkh.me/txt
-    if not territory:
+    if not ip_territory:
         url = 'https://proxy.rudnkh.me/txt'
-        response = req.get(url)
+        if ip_port:
+            proxies_settings = {"http": ip_port, "https": ip_port}
+            response = req.get(url, proxies=proxies_settings)
+        else:
+            response = req.get(url)
         proxies_rudnkh = set(response.text.split('\n'))
         proxies.update(proxies_rudnkh)
 
@@ -106,28 +133,33 @@ def get_proxies(territory=None):
 
 
 @click.command()
-# @click.argument('input_filepath', type=click.Path(exists=True))
-# @click.argument('output_filepath', type=click.Path())
-def main(input_filepath=None, output_filepath='./data/'):
+@click.option('--ip_territory',default=None,type=str)
+@click.option('--ip_port',default=None,type=str)
+@click.option('--scrape_speed',default='regular',type=str) # This option is not tied to any action
+@click.option('--force',is_flag=True) # This option is not tied to any action
+def main(ip_territory, ip_port, scrape_speed, force=False):
     """ Runs data processing scripts to turn raw data from (../raw) into
         cleaned data ready to be analyzed (saved in ../processed).
     """
 
     # Round Robin proxy rotation
-    territory = None
-    if territory:
-        path = './data/interim/proxies_' + territory + '.csv'
+    if ip_territory:
+        path = './data/proxies/proxies_' + ip_territory + '.csv'
     else:
-        path = './data/interim/proxies.csv'
+        path = './data/proxies/proxies_all.csv'
     # Check date of csv creation or modification
     try:
         new_proxies = datetime.fromtimestamp(os.stat(path)[8]) > datetime.now() - timedelta(minutes=30)
     except:
         new_proxies = False
     if not new_proxies:
-        proxies = get_proxies(territory=territory)
-        proxy_df = pd.DataFrame(list(proxies), columns=['ip'])
-        proxy_df.to_csv(path, sep='\t', encoding='utf-8')
+        proxies = get_proxies(ip_territory=ip_territory, ip_port=ip_port)
+        proxies = validate_proxies(proxies)
+        proxy_df = pd.DataFrame(proxies, columns=['ip'])
+        if len(proxy_df) > 0:
+            proxy_df.to_csv(path, sep='\t', encoding='utf-8')
+        else:
+            raise Exception('No Responsive Proxies found.')
 
     logger = logging.getLogger(__name__)
     logger.info('making final data set from raw data')

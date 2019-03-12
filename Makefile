@@ -25,17 +25,16 @@ requirements: test_environment
 	$(PYTHON_INTERPRETER) -m pip install -U pip setuptools wheel
 	$(PYTHON_INTERPRETER) -m pip install -r requirements.txt
 
-## Make Dataset
+## Get Zipcodes
 zipcodes: requirements
-	$(PYTHON_INTERPRETER) src/data/get_zipcodes.py
+	$(PYTHON_INTERPRETER) src/scraper/get_zipcodes.py
 
-## Make Dataset
+## Scrape Proxies and Data
 proxies: requirements
-	$(PYTHON_INTERPRETER) src/data/get_proxies.py
+	$(PYTHON_INTERPRETER) src/scraper/get_proxies.py $(options)
 
-## Make Dataset
-no_req_data:
-	$(PYTHON_INTERPRETER) src/data/make_dataset.py
+scraper: requirements
+	$(PYTHON_INTERPRETER) src/scraper/scrape_data.py $(options)
 
 ## Make Dataset
 data: requirements
