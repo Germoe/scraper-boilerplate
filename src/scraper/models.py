@@ -7,6 +7,7 @@ import re
 import requests as req
 import traceback
 import time
+from pathlib import Path
 
 # ------ Utils ------
 
@@ -114,7 +115,12 @@ class Scraper():
         return self.scrape_limit
 
     def set_speed(self, speed='regular'):
-        if speed == 'fast':
+        if speed == 'extreme':
+            self.min_wait = 1
+            self.max_wait = 3
+            self.min_wait_failed = 1
+            self.max_wait_failed = 3
+        elif speed == 'fast':
             self.min_wait = 5
             self.max_wait = 10
             self.min_wait_failed = 3
@@ -192,10 +198,12 @@ class ZipcodeScraper(Scraper):
         print('Failed: wait for {}'.format(seconds))
         time.sleep(seconds)
     
-    def scrape(self, timeout=3, max_retries=10):
+    def scrape(self, timeout=3, max_retries=10, limit_per_proxy=10):
         # Shuffle the zip codes to lower probability of pattern recognition
         zip_codes_shuffled = self.zip_codes.sample(frac=1)
         counter = 0
+        iteration = 0
+        self.proxy = next(self.proxy_pool)
         for row in zip_codes_shuffled.iterrows():
             row_values = row[1]
             zip_code = row_values['zip']
@@ -203,18 +211,20 @@ class ZipcodeScraper(Scraper):
             num_retries = 0
             for retry in range(0,max_retries):
                 # Get a proxy from the pool
-                self.proxy = next(self.proxy_pool)
                 print("with proxy {}".format(self.proxy))
                 proxies_settings, timeout = check_proxy(proxy=self.proxy, proxy_pool=self.proxy_pool, num_proxies=self.num_proxies, timeout=timeout)
                 try:
                     scrape_timeout = timeout + 5
                     path = self.dir_path + '/' + self.target + '_' + zip_code + '.csv'
-                    success = self.scrape_func(zip_code, path=path, radius=self.radius, proxies=proxies_settings, timeout=scrape_timeout)
+                    success = self.scrape_func(row_values, path=path, radius=self.radius, proxies=proxies_settings, timeout=scrape_timeout)
                     break
                 except req.exceptions.ConnectionError:
                     print("xxxxxxxxxxxx  Connection refused  xxxxxxxxxxxx")
                     self.failed_wait_seconds()
                     num_retries += 1
+                    # Get new proxy
+                    print('new proxy')
+                    self.proxy = next(self.proxy_pool)
                     print("Retry #{}".format(num_retries))
                 except:
                     '''
@@ -230,6 +240,12 @@ class ZipcodeScraper(Scraper):
                 break
             else:
                 counter += 1
+            if iteration > limit_per_proxy:
+                print('next proxy')
+                self.proxy = next(self.proxy_pool)
+                iteration = 0
+            else:
+                iteration += 1
             if success:
                 self.wait_seconds()
             else:

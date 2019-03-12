@@ -24,8 +24,9 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 # Import the Scrape Function defined in scraper.py
-from scraper import walmart_scraper
+import scraper as scrape_func
 from models import ZipcodeScraper
+import inspect
 
 ## ----------------------- Utils ------------------------
 
@@ -37,14 +38,21 @@ def print_progress(counter, zip_code, total, interval=500):
 # Set indentation level of pretty printer
 pp = pprint.PrettyPrinter(indent=2)
 
+scrape_functions = dict()
+for x in inspect.getmembers(scrape_func):
+    if inspect.isfunction(x[1]):
+        key = x[0]
+        val = x[1]
+        scrape_functions[key] = val
+
 @click.command()
 @click.argument('target', type=str) # Target is the identifier for the scraped url, destination directory and name (e.g. walmart)
 @click.argument('scrapetype', type=str) # Scraper Type defines the iteration unit or type of scraper that will be used (e.g. zipcode)
+@click.argument('scrapespeed',default='regular',type=str)
 @click.option('--ip_territory',default=None,type=str)
 @click.option('--ip_port',default=None,type=str) # This option is not tied to any action
-@click.option('--scrape_speed',default='regular',type=str)
 @click.option('--force',is_flag=True)
-def main(target, scrapetype, ip_territory, ip_port, scrape_speed, force=False):
+def main(target, scrapetype, ip_territory, ip_port, scrapespeed, force=False):
     """ Runs data processing scripts to turn raw data from (../raw) into
         cleaned data ready to be analyzed (saved in ../processed).
     """
@@ -59,7 +67,7 @@ def main(target, scrapetype, ip_territory, ip_port, scrape_speed, force=False):
         ip_path = './data/proxies/proxies.csv'
 
     scrape_limit = scraper.init_proxies(ip_path, force)
-    scraper.set_speed(scrape_speed)
+    scraper.set_speed(scrapespeed)
     print('Scrape Limit: {} units'.format(scrape_limit))
     if scrapetype == 'zipcode':
         # Read in Zip Codes. Zipcodes csv need to have columns = ['zip','lat','lng','type']
@@ -68,34 +76,9 @@ def main(target, scrapetype, ip_territory, ip_port, scrape_speed, force=False):
         else:
             zip_codes_file = './data/zip_codes/zipcodes_100.csv'
         scraper.init_zipcodes(zip_codes_file)
-        scraper.init_scraper(walmart_scraper)
+        scraper.init_scraper(scrape_functions[target])
         scraper.scrape()
     print('done')
-
-
-    # -------- Paul Mitchell ------
-    # session = req.Session()
-
-    # # HEAD requests ask for *just* the headers, which is all you need to grab the
-    # # session cookie
-    # # NOTE: BEFORE SETTING THIS LIFE MAKE SURE TO ROTATE PROXIES
-    # session.head('https://locator.paulmitchell.com/SalonLocator/')
-
-    # response = session.post(
-    #     url='https://locator.paulmitchell.com/SalonLocator/generateXML.php',
-    #     data={
-    #         'lat': 42.92,
-    #         'lng': -78.88,
-    #         'radius': 25
-    #     },
-    #     headers={
-    #         'Referer': 'https://locator.paulmitchell.com/SalonLocator/locator.php?zip=14222'
-    #     },
-    #     proxies=proxies,
-    #     timeout=10
-    # )
-
-    # pp.pprint(json.loads(response.text))
 
     # ------- Redken --------
     # HEAD requests ask for *just* the headers, which is all you need to grab the

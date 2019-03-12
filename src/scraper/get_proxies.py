@@ -135,9 +135,7 @@ def get_proxies(ip_territory=None, ip_port=None):
 @click.command()
 @click.option('--ip_territory',default=None,type=str)
 @click.option('--ip_port',default=None,type=str)
-@click.option('--scrape_speed',default='regular',type=str) # This option is not tied to any action
-@click.option('--force',is_flag=True) # This option is not tied to any action
-def main(ip_territory, ip_port, scrape_speed, force=False):
+def main(ip_territory, ip_port):
     """ Runs data processing scripts to turn raw data from (../raw) into
         cleaned data ready to be analyzed (saved in ../processed).
     """
@@ -160,6 +158,8 @@ def main(ip_territory, ip_port, scrape_speed, force=False):
             proxy_df.to_csv(path, sep='\t', encoding='utf-8')
         else:
             raise Exception('No Responsive Proxies found.')
+    else:
+        print('Proxies are up-to-date.')
 
     logger = logging.getLogger(__name__)
     logger.info('making final data set from raw data')
