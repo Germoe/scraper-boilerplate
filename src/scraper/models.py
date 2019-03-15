@@ -14,85 +14,25 @@ from pathlib import Path
 def getRandomArbitrary(min, max):
   return random.random() * (max - min) + min
 
+def extract_zip_code(filename, target):
+    zip_code = re.search('(?<=' + target + '_)' + '[0-9]*' + '(?!>.csv)', filename)
+    if zip_code:
+        return zip_code.group(0)
+
+def print_progress(counter, zip_code, total, interval=500):
+    # Prints a progress statement for every 500 records that were processed
+    if counter % interval == 0:
+        print("Progress: {} \n ID: {} \n Records: {}".format(counter,zip_code,total))
+
 # ------ Zipcode Scraper Classes ------
 
-class Zipcodes():
-    #constructor
-    def __init__(self, zipcodes):
-        if isinstance(zipcodes, list):
-            if len(zipcodes) <= 0:
-                raise ValueError("arg 'zipcodes' must contain at least one item")
-            # Take Zipcode Objects and return a dataframe with unique zipcodes and columns for lat and lng
-            self.zipcodes = pd.DataFrame([{ 'zip': i.zipcode, 'type': i.zipcode_type, 'lat': i.lat, 'lng': i.lng } for i in zipcodes]) \
-                                .drop_duplicates(subset='zip', keep='first') \
-                                .dropna()
-            # Only allow Zipcode Type Standard as UNIQUE, PO BOX and MILITARY aren't relevant to this scraper and 
-            # the uszipcodes package doesn't list non-standard zipcodes with the by_coordinates method.
-            self.zipcodes = self.zipcodes[self.zipcodes['type'] == 'STANDARD']
-        else:
-            raise ValueError("arg 'zipcodes' must be of type list")
-
-    def _in_radius(self, row, rad):
-        z = row
-        try:
-            search = SearchEngine(simple_zipcode=True)
-        except NameError as error:
-            # Output expected ImportErrors.
-            print('NameError: {} module from {} package not found'.format('SearchEngine', 'uszipcode'))
-        except Exception as exception:
-            # Output unexpected Exceptions.
-            print('Exception: {}'.format(exception))
-        zipcodes = [i.zipcode for i in search.by_coordinates(lat=z.loc['lat'], lng=z.loc['lng'], radius=rad, zipcode_type='Standard', returns=100000)]
-        zipcodes = set(zipcodes)
-        try:
-            zipcodes.remove(z.loc['zip'])
-            other = zipcodes
-            unique = z
-        except:
-            # If the zip code is of type STANDARD they'll be covered by a different zip code. 
-            # The output provides indicators to the population of the zip code in question.
-            faulty_zip = search.by_zipcode(z.zip)
-            if faulty_zip.population or faulty_zip.land_area_in_sqmi:
-                print('We couldn\'t remove {}. The zip code is of the type {} and the Population or Land Area is not None. Make sure this is ok. The zip code is kept.'.format(z.zip, z.type))
-                print('** Population: {} \n Land Area (in sqmi): {}'.format(faulty_zip.population, faulty_zip.land_area_in_sqmi)) 
-                other = set()
-                unique = z
-            else:
-                other = set(z.zip)
-                unique = pd.Series()
-        return (unique, other)
-
-    def filter_by_rad(self, rad):
-        """
-            This method is to filter out redundant zip codes for a specific radius. 
-            The result will still overlap but significantly reduce the amount of zip 
-            codes necessary to be scraped.
-        """
-        if isinstance(rad, int):
-            half_rad = rad/2
-        else:
-            raise ValueError("arg 'rad' must be of type int")
-        unique_zipcodes = []
-        other_zipcodes = set()
-        total_zipcodes = len(self.zipcodes)
-        counter = 0
-        for index, row in self.zipcodes.iterrows():
-            if row.zip in other_zipcodes:
-                continue
-            unique, other = self._in_radius(row=row, rad=half_rad)
-            if not unique.empty:
-                unique_zipcodes.append(unique)
-            for i in other:
-                other_zipcodes.add(i)
-            print_progress(counter, row.zip, total_zipcodes, interval=1000)
-            counter += 1
-        new_df = pd.DataFrame(unique_zipcodes)
-        return new_df
-
 class Scraper():
-    # constructor 
+    '''
+    Scraper Class functions as a base class for other Scrapers
+    '''
+    
     def __init__(self):
-        print('Scraper')
+        pass
 
     def init_proxies(self, proxies_csv, force=False):
         # Read in proxies
@@ -168,65 +108,28 @@ class Scraper():
         self.scrape_func = scrape_func
 
     def scrape(self, timeout=3, max_retries=10):
-        # Shuffle the zip codes to lower probability of pattern recognition
-        zip_codes_shuffled = self.zip_codes.sample(frac=1)
-        counter = 0
-        iteration = 0
-        self.proxy, timeout, req_limit = self.check_proxy(timeout=timeout)
-        for row in zip_codes_shuffled.iterrows():
-            row_values = row[1]
-            zip_code = row_values['zip']
-            print("Request for zip code {}".format(zip_code))
-            num_retries = 0
-            for retry in range(0,max_retries):
-                # Get a proxy from the pool
-                print("with proxy {}".format(self.proxy))
-                proxies_settings = {"http": self.proxy, "https": self.proxy}
-                try:
-                    scrape_timeout = timeout + 3
-                    path = self.dir_path + '/' + self.target + '_' + zip_code + '.csv'
-                    success = self.scrape_func(row_values, path=path, radius=self.radius, proxies=proxies_settings, timeout=scrape_timeout)
-                    break
-                except req.exceptions.ConnectionError:
-                    print("xxxxxxxxxxxx  Connection refused  xxxxxxxxxxxx")
-                    self.failed_wait_seconds()
-                    num_retries += 1
-                    # Get new proxy
-                    print('new proxy')
-                    self.proxy, timeout, req_limit = self.check_proxy(timeout=timeout)
-                    print("Retry #{}".format(num_retries))
-                except:
-                    '''
-                        Most free proxies will often get connection errors. You will have retry the entire request using another proxy to work.
-                        We will just skip retries as its beyond the scope of this tutorial and we are only downloading a single url
-                    '''
-                    print(traceback.format_exc())
-                    self.failed_wait_seconds()
-                    num_retries += 1
-                    print("Retry #{}".format(num_retries))
-            # wait until you get next Zip Code
-            if counter > self.scrape_limit:
-                break
-            else:
-                counter += 1
-            if iteration > req_limit:
-                print('next proxy')
-                self.proxy, timeout, req_limit = self.check_proxy(timeout=timeout)
-                iteration = 0
-            else:
-                iteration += 1
-            if success:
-                self.wait_seconds()
-            else:
-                print(success)
-                print('No Success for ZIP {}: Continue to next with no wait.'.format(zip_code))
+        '''
+            This is where a general scrape iterator method will be added similar to the scrape() method in ZipcodeScraper.
+        '''
+        pass
+
+
+# ------ Zipcode Scraper Classes ------
 
 class ZipcodeScraper(Scraper):
-    #constructor
+    '''
+    Scraper Class designed to iterate over zipcodes to scrape information from maps using zipcodes or latitude/longitude input (e.g. store locators).
+    '''
+
+    basePath = './data/interim/' # basePath is used to determine the parent directory of the scraper output
+    radius = 100
+
+    # Zipcode Scraper is running a scrape function that is using zipcodes and attributes associated with Zipcodes (e.g. lat and lng) as iterators for scraping.
     def __init__(self, target):
         self.target = target
 
     def set_radius(self, radius):
+        # Most Locators etc. used for scraping information use a radius. By default this is set to 100.
         self.radius = radius
 
     def init_zipcodes(self, zipcode_csv):
@@ -234,10 +137,11 @@ class ZipcodeScraper(Scraper):
         zip_codes = pd.read_csv(zipcode_csv,
                                 dtype={'zip': object, 'lat': float, 'lng': float, 'type': object})
         # Create dir if not exists
-        self.dir_path = './data/interim/' + self.target
+        self.dir_path = self.basePath + self.target
         try:
             Path(self.dir_path).mkdir(parents=True)
         except:
+            # This exception can be ignored. An exception will be thrown if the directory already exists (desired outcome).
             pass
         # Get filenames of already scraped zipcodes and filter the dataframe
         target_filenames = os.listdir(self.dir_path)
@@ -256,6 +160,9 @@ class ZipcodeScraper(Scraper):
         time.sleep(seconds)
     
     def scrape(self, timeout=3, max_retries=10):
+        '''
+        The method to trigger a scrape function including proxy rotation, retries and fallbacks.
+        '''
         # Shuffle the zip codes to lower probability of pattern recognition
         zip_codes_shuffled = self.zip_codes.sample(frac=1)
         counter = 0
@@ -284,10 +191,6 @@ class ZipcodeScraper(Scraper):
                     self.proxy, timeout, req_limit = self.check_proxy(timeout=timeout)
                     print("Retry #{}".format(num_retries))
                 except:
-                    '''
-                        Most free proxies will often get connection errors. You will have retry the entire request using another proxy to work.
-                        We will just skip retries as its beyond the scope of this tutorial and we are only downloading a single url
-                    '''
                     print(traceback.format_exc())
                     self.failed_wait_seconds()
                     num_retries += 1
@@ -309,7 +212,90 @@ class ZipcodeScraper(Scraper):
                 print(success)
                 print('No Success for ZIP {}: Continue to next with no wait.'.format(zip_code))
 
-def extract_zip_code(filename, target):
-    zip_code = re.search('(?<=' + target + '_)' + '[0-9]*' + '(?!>.csv)', filename)
-    if zip_code:
-        return zip_code.group(0)
+class Zipcodes():
+    '''
+    Class that generates a list of zipcodes to avoid scraping overlapping zipcodes in a specific area. 
+    '''
+    def __init__(self, zipcodes=None):
+        '''
+        You can either provide a list of zipcode objects generated by the zipcodes library (use get_zipcodes.py and make sure you've set up a postgres instance with the zipcodes package) 
+        or use the default and have Zipcodes() do all the heavy lifting for you. This might be slightly more out-of-date but is likely good-enough for most use cases. If precision is a high
+        priority please follow the instructions on setting up the `zipcode` package by buckmaxwell.
+        '''
+        if isinstance(zipcodes, list):
+            if len(zipcodes) <= 0:
+                raise ValueError("arg 'zipcodes' must contain at least one item")
+            # Take Zipcode Objects and return a dataframe with unique zipcodes and columns for lat and lng
+            self.zipcodes = pd.DataFrame([{ 'zip': i.zipcode, 'type': i.zipcode_type, 'lat': i.lat, 'lng': i.lng } for i in zipcodes]) \
+                                .drop_duplicates(subset='zip', keep='first') \
+                                .dropna()
+            # Only allow Zipcode Type Standard as UNIQUE, PO BOX and MILITARY aren't relevant to this scraper and 
+            # the uszipcodes package doesn't list non-standard zipcodes with the by_coordinates method.
+            self.zipcodes = self.zipcodes[(self.zipcodes['type'] == 'STANDARD') | (self.zipcodes['type'] == 'Standard') | (self.zipcodes['type'] == 'standard') ]
+        else:
+            raise ValueError("arg 'zipcodes' must be of type list")
+
+    def _in_radius(self, row, rad):
+        '''
+        The essential method for this class is _in_radius(). It returns the list of remaining zip codes and those that were filtered out as a tuple.
+        As a rule of thumb use 50 radius, if you're scraping at 100 radius (units are in miles).
+        '''
+        z = row
+        try:
+            search = SearchEngine(simple_zipcode=True)
+        except NameError as error:
+            # Output expected ImportErrors.
+            print('NameError: {} module from {} package not found'.format('SearchEngine', 'uszipcode'))
+        except Exception as exception:
+            # Output unexpected Exceptions.
+            print('Exception: {}'.format(exception))
+        zipcodes = [i.zipcode for i in search.by_coordinates(lat=z.loc['lat'], lng=z.loc['lng'], radius=rad, zipcode_type='Standard', returns=100000)]
+        zipcodes = set(zipcodes)
+        try:
+            zipcodes.remove(z.loc['zip'])
+            other = zipcodes
+            unique = z
+        except:
+            # If the zip code is of type STANDARD they'll be covered by a different zip code. 
+            # The output provides indicators to the population of the zip code in question.
+            faulty_zip = search.by_zipcode(z.zip)
+            if faulty_zip.population or faulty_zip.land_area_in_sqmi:
+                print('We couldn\'t remove {}. The zip code is of the type {} and the Population or Land Area is not None. Make sure this is ok. The zip code is kept.'.format(z.zip, z.type))
+                print('** Population: {} \n Land Area (in sqmi): {}'.format(faulty_zip.population, faulty_zip.land_area_in_sqmi)) 
+                other = set()
+                unique = z
+            else:
+                other = set(z.zip)
+                unique = pd.Series()
+        return (unique, other)
+
+    def filter_by_rad(self, rad):
+        """
+            This method is to filter out redundant zip codes for a specific radius. 
+            The result will still overlap but significantly reduce the amount of zip 
+            codes necessary to be scraped.
+
+            NOTE: To keep the radius consistent across the app the radius used here 
+            will be the same that you're using to scrape. To keep coverage of zip codes 
+            as close to 100% as possible the radius is hence going to be divided by 2.
+        """
+        if isinstance(rad, int):
+            half_rad = rad/2
+        else:
+            raise ValueError("arg 'rad' must be of type int")
+        unique_zipcodes = []
+        other_zipcodes = set()
+        total_zipcodes = len(self.zipcodes)
+        counter = 0
+        for index, row in self.zipcodes.iterrows():
+            if row.zip in other_zipcodes:
+                continue
+            unique, other = self._in_radius(row=row, rad=half_rad)
+            if not unique.empty:
+                unique_zipcodes.append(unique)
+            for i in other:
+                other_zipcodes.add(i)
+            print_progress(counter, row.zip, total_zipcodes, interval=1000)
+            counter += 1
+        new_df = pd.DataFrame(unique_zipcodes)
+        return new_df

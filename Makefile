@@ -27,7 +27,7 @@ requirements: test_environment
 
 ## Get Zipcodes
 zipcodes: requirements
-	$(PYTHON_INTERPRETER) src/scraper/get_zipcodes.py
+	$(PYTHON_INTERPRETER) src/scraper/get_zipcodes.py ${options}
 
 ## Scrape Proxies and Data
 proxies: requirements
