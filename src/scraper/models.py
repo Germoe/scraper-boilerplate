@@ -105,6 +105,7 @@ class Scraper():
         random.shuffle(proxies)
         self.num_proxies = len(proxies)
         self.proxy_pool = cycle(proxies)
+        self.proxy = next(self.proxy_pool)
 
         lower_limit_per_proxy = 50
         upper_limit_per_proxy = 150
@@ -113,6 +114,33 @@ class Scraper():
         scrape_limit_max = upper_limit_per_proxy * len(proxies)
         self.scrape_limit = int(getRandomArbitrary(scrape_limit_min,scrape_limit_max))
         return self.scrape_limit
+    
+    def check_proxy(self, timeout, counter=0):
+        '''
+            Make sure to input proxies in the following format
+            proxies = {
+                "http": 'http://104.199.166.104:8800',
+                "https": 'http://104.199.166.104:8800'
+            }
+        '''
+        proxies_settings = {"http": self.proxy, "https": self.proxy}
+        url = 'https://httpbin.org/ip'
+        print('checking proxy: ', self.proxy)
+        try:
+            response = req.get(url,proxies=proxies_settings, timeout=timeout)
+            print('Response Successful')
+            req_limit = int(getRandomArbitrary(1,15))
+            print('Limit for Proxy: {}'.format(req_limit + 1))
+            return self.proxy, timeout, req_limit
+        except:
+            print('Proxy unresponsive trying next.')
+            counter += 1
+            if counter >= self.num_proxies:
+                print('Timeout extended as Proxies are slow to respond.')
+                timeout += 15
+                counter = 0
+            self.proxy = next(self.proxy_pool)
+            return self.check_proxy(counter=counter, timeout=timeout)
 
     def set_speed(self, speed='regular'):
         if speed == 'extreme':
@@ -121,7 +149,7 @@ class Scraper():
             self.min_wait_failed = 1
             self.max_wait_failed = 3
         elif speed == 'fast':
-            self.min_wait = 5
+            self.min_wait = 1
             self.max_wait = 10
             self.min_wait_failed = 3
             self.max_wait_failed = 5
@@ -139,30 +167,59 @@ class Scraper():
     def init_scraper(self,scrape_func):
         self.scrape_func = scrape_func
 
-def check_proxy(proxy, proxy_pool, num_proxies, timeout, counter=0):
-    '''
-        Make sure to input proxies in the following format
-        proxies = {
-            "http": 'http://104.199.166.104:8800',
-            "https": 'http://104.199.166.104:8800'
-        }
-    '''
-    proxies_settings = {"http": proxy, "https": proxy}
-    url = 'https://httpbin.org/ip'
-    print('checking proxy: ', proxy)
-    try:
-        response = req.get(url,proxies=proxies_settings, timeout=timeout)
-        print(response.json())
-        return proxies_settings, timeout
-    except:
-        print('proxy unresponsive trying next')
-        counter += 1
-        if counter >= num_proxies:
-            print('Timeout extended as Proxies are slow to respond.')
-            timeout += 15
-            counter = 0
-        return check_proxy(proxy=next(proxy_pool), proxy_pool=proxy_pool, num_proxies=num_proxies, counter=counter, timeout=timeout)
-
+    def scrape(self, timeout=3, max_retries=10):
+        # Shuffle the zip codes to lower probability of pattern recognition
+        zip_codes_shuffled = self.zip_codes.sample(frac=1)
+        counter = 0
+        iteration = 0
+        self.proxy, timeout, req_limit = self.check_proxy(timeout=timeout)
+        for row in zip_codes_shuffled.iterrows():
+            row_values = row[1]
+            zip_code = row_values['zip']
+            print("Request for zip code {}".format(zip_code))
+            num_retries = 0
+            for retry in range(0,max_retries):
+                # Get a proxy from the pool
+                print("with proxy {}".format(self.proxy))
+                proxies_settings = {"http": self.proxy, "https": self.proxy}
+                try:
+                    scrape_timeout = timeout + 3
+                    path = self.dir_path + '/' + self.target + '_' + zip_code + '.csv'
+                    success = self.scrape_func(row_values, path=path, radius=self.radius, proxies=proxies_settings, timeout=scrape_timeout)
+                    break
+                except req.exceptions.ConnectionError:
+                    print("xxxxxxxxxxxx  Connection refused  xxxxxxxxxxxx")
+                    self.failed_wait_seconds()
+                    num_retries += 1
+                    # Get new proxy
+                    print('new proxy')
+                    self.proxy, timeout, req_limit = self.check_proxy(timeout=timeout)
+                    print("Retry #{}".format(num_retries))
+                except:
+                    '''
+                        Most free proxies will often get connection errors. You will have retry the entire request using another proxy to work.
+                        We will just skip retries as its beyond the scope of this tutorial and we are only downloading a single url
+                    '''
+                    print(traceback.format_exc())
+                    self.failed_wait_seconds()
+                    num_retries += 1
+                    print("Retry #{}".format(num_retries))
+            # wait until you get next Zip Code
+            if counter > self.scrape_limit:
+                break
+            else:
+                counter += 1
+            if iteration > req_limit:
+                print('next proxy')
+                self.proxy, timeout, req_limit = self.check_proxy(timeout=timeout)
+                iteration = 0
+            else:
+                iteration += 1
+            if success:
+                self.wait_seconds()
+            else:
+                print(success)
+                print('No Success for ZIP {}: Continue to next with no wait.'.format(zip_code))
 
 class ZipcodeScraper(Scraper):
     #constructor
@@ -198,12 +255,12 @@ class ZipcodeScraper(Scraper):
         print('Failed: wait for {}'.format(seconds))
         time.sleep(seconds)
     
-    def scrape(self, timeout=3, max_retries=10, limit_per_proxy=10):
+    def scrape(self, timeout=3, max_retries=10):
         # Shuffle the zip codes to lower probability of pattern recognition
         zip_codes_shuffled = self.zip_codes.sample(frac=1)
         counter = 0
         iteration = 0
-        self.proxy = next(self.proxy_pool)
+        self.proxy, timeout, req_limit = self.check_proxy(timeout=timeout)
         for row in zip_codes_shuffled.iterrows():
             row_values = row[1]
             zip_code = row_values['zip']
@@ -211,10 +268,10 @@ class ZipcodeScraper(Scraper):
             num_retries = 0
             for retry in range(0,max_retries):
                 # Get a proxy from the pool
-                print("with proxy {}".format(self.proxy))
-                proxies_settings, timeout = check_proxy(proxy=self.proxy, proxy_pool=self.proxy_pool, num_proxies=self.num_proxies, timeout=timeout)
+                # print("with proxy {}".format(self.proxy))
+                proxies_settings = {"http": self.proxy, "https": self.proxy}
                 try:
-                    scrape_timeout = timeout + 5
+                    scrape_timeout = timeout + 3
                     path = self.dir_path + '/' + self.target + '_' + zip_code + '.csv'
                     success = self.scrape_func(row_values, path=path, radius=self.radius, proxies=proxies_settings, timeout=scrape_timeout)
                     break
@@ -224,7 +281,7 @@ class ZipcodeScraper(Scraper):
                     num_retries += 1
                     # Get new proxy
                     print('new proxy')
-                    self.proxy = next(self.proxy_pool)
+                    self.proxy, timeout, req_limit = self.check_proxy(timeout=timeout)
                     print("Retry #{}".format(num_retries))
                 except:
                     '''
@@ -240,9 +297,9 @@ class ZipcodeScraper(Scraper):
                 break
             else:
                 counter += 1
-            if iteration > limit_per_proxy:
+            if iteration > req_limit:
                 print('next proxy')
-                self.proxy = next(self.proxy_pool)
+                self.proxy, timeout, req_limit = self.check_proxy(timeout=timeout)
                 iteration = 0
             else:
                 iteration += 1

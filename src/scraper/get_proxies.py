@@ -52,7 +52,7 @@ def validate_proxies(proxies):
     return valid_proxies
 
 
-def scrape_proxies(url, xpath_tbody_tr, xpath_scrape_condition, xpath_ip, xpath_port, xpath_next_disable_condition=None, xpath_next_a=None, timeout=10, ip_port=None):
+def scrape_proxies(url, xpath_tbody_tr, xpath_scrape_condition, xpath_ip, xpath_port, xpath_next_disable_condition=None, xpath_next_a=None, timeout=5, ip_port=None):
     # create Proxy Set
     proxies = set()
     # initialize webdriver

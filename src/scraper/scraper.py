@@ -109,7 +109,7 @@ def paul_mitchell(zip_code, path, proxies, timeout, radius):
             'Referer': 'https://locator.paulmitchell.com/SalonLocator/locator.php?zip={}'.format(zip_code.zip)
         },
         proxies=proxies,
-        timeout=10
+        timeout=timeout
     )
 
     try:
