@@ -14,6 +14,11 @@ from pathlib import Path
 def getRandomArbitrary(min, max):
   return random.random() * (max - min) + min
 
+def extract_iterator(filename, target):
+    iterator = re.search('(?<=' + target + '_)' + '[A-Z|a-z|0-9|_]*' + '(?!>.csv)', filename)
+    if iterator:
+        return iterator.group(0)
+
 def extract_zip_code(filename, target):
     zip_code = re.search('(?<=' + target + '_)' + '[0-9]*' + '(?!>.csv)', filename)
     if zip_code:
@@ -30,9 +35,11 @@ class Scraper():
     '''
     Scraper Class functions as a base class for other Scrapers
     '''
+
+    basePath = './data/interim/' # basePath is used to determine the parent directory of the scraper output
     
-    def __init__(self):
-        pass
+    def __init__(self, target):
+        self.target = target
 
     def init_proxies(self, proxies_csv, force=False):
         # Read in proxies
@@ -54,6 +61,21 @@ class Scraper():
         scrape_limit_max = upper_limit_per_proxy * len(proxies)
         self.scrape_limit = int(getRandomArbitrary(scrape_limit_min,scrape_limit_max))
         return self.scrape_limit
+
+    def init_iterator(self, iterator_df):
+        # This function reads in a DataFrame with a column 'iterator' and removes those iterators that have already been scraped.
+        # Create dir if not exists
+        self.dir_path = self.basePath + self.target
+        try:
+            Path(self.dir_path).mkdir(parents=True)
+        except:
+            # This exception can be ignored. An exception will be thrown if the directory already exists (desired outcome).
+            pass
+        # Get filenames of already scraped iterators and filter the dataframe
+        target_filenames = os.listdir(self.dir_path)
+        scraped_iterators = [extract_iterator(filename, self.target) for filename in target_filenames]
+        self.iterators = iterator_df.loc[~iterator_df['iterator'].isin(scraped_iterators),:]
+        return self.iterators
     
     def check_proxy(self, timeout, counter=0):
         '''
@@ -103,15 +125,72 @@ class Scraper():
             self.max_wait = 30
             self.min_wait_failed = 30
             self.max_wait_failed = 60
-    
+
     def init_scraper(self,scrape_func):
         self.scrape_func = scrape_func
+
+    def wait_seconds(self):
+        seconds = getRandomArbitrary(self.min_wait,self.max_wait)
+        print('Success: Wait for {}'.format(seconds))
+        time.sleep(seconds)
+
+    def failed_wait_seconds(self):
+        seconds = getRandomArbitrary(self.min_wait_failed,self.max_wait_failed)
+        print('Failed: wait for {}'.format(seconds))
+        time.sleep(seconds)
 
     def scrape(self, timeout=3, max_retries=10):
         '''
             This is where a general scrape iterator method will be added similar to the scrape() method in ZipcodeScraper.
         '''
-        pass
+        # Shuffle the iterators to lower probability of pattern recognition
+        iterators_shuffled = self.iterators.sample(frac=1)
+        counter = 0
+        iteration = 0
+        self.proxy, timeout, req_limit = self.check_proxy(timeout=timeout)
+        for row in iterators_shuffled.iterrows():
+            row_values = row[1]
+            iterator = row_values['iterator']
+            print("Request for iterator {}".format(iterator))
+            num_retries = 0
+            for retry in range(0,max_retries):
+                # Get a proxy from the pool
+                # print("with proxy {}".format(self.proxy))
+                proxies_settings = {"http": self.proxy, "https": self.proxy}
+                try:
+                    scrape_timeout = timeout + 3
+                    path = self.dir_path + '/' + self.target + '_' + iterator + '.csv'
+                    success = self.scrape_func(iterator, path=path, proxies=proxies_settings, timeout=scrape_timeout)
+                    break
+                except req.exceptions.ConnectionError:
+                    print("xxxxxxxxxxxx  Connection refused  xxxxxxxxxxxx")
+                    self.failed_wait_seconds()
+                    num_retries += 1
+                    # Get new proxy
+                    print('new proxy')
+                    self.proxy, timeout, req_limit = self.check_proxy(timeout=timeout)
+                    print("Retry #{}".format(num_retries))
+                except:
+                    print(traceback.format_exc())
+                    self.failed_wait_seconds()
+                    num_retries += 1
+                    print("Retry #{}".format(num_retries))
+            # wait until you get next iterator
+            if counter > self.scrape_limit:
+                break
+            else:
+                counter += 1
+            if iteration > req_limit:
+                print('next proxy')
+                self.proxy, timeout, req_limit = self.check_proxy(timeout=timeout)
+                iteration = 0
+            else:
+                iteration += 1
+            if success:
+                self.wait_seconds()
+            else:
+                print(success)
+                print('No Success for Iterator {}: Continue to next with no wait.'.format(iterator))
 
 
 # ------ Zipcode Scraper Classes ------
@@ -121,7 +200,6 @@ class ZipcodeScraper(Scraper):
     Scraper Class designed to iterate over zipcodes to scrape information from maps using zipcodes or latitude/longitude input (e.g. store locators).
     '''
 
-    basePath = './data/interim/' # basePath is used to determine the parent directory of the scraper output
     radius = 100
 
     # Zipcode Scraper is running a scrape function that is using zipcodes and attributes associated with Zipcodes (e.g. lat and lng) as iterators for scraping.
@@ -148,16 +226,6 @@ class ZipcodeScraper(Scraper):
         scraped_zip_codes = [extract_zip_code(filename, self.target) for filename in target_filenames]
         self.zip_codes = zip_codes.loc[~zip_codes['zip'].isin(scraped_zip_codes),:]
         return self.zip_codes
-
-    def wait_seconds(self):
-        seconds = getRandomArbitrary(self.min_wait,self.max_wait)
-        print('Success: Wait for {}'.format(seconds))
-        time.sleep(seconds)
-
-    def failed_wait_seconds(self):
-        seconds = getRandomArbitrary(self.min_wait_failed,self.max_wait_failed)
-        print('Failed: wait for {}'.format(seconds))
-        time.sleep(seconds)
     
     def scrape(self, timeout=3, max_retries=10):
         '''

@@ -52,7 +52,7 @@ def validate_proxies(proxies):
     return valid_proxies
 
 
-def scrape_proxies(url, xpath_tbody_tr, xpath_scrape_condition, xpath_ip, xpath_port, xpath_next_disable_condition=None, xpath_next_a=None, timeout=5, ip_port=None):
+def scrape_proxies(url, xpath_tbody_tr, xpath_scrape_condition, xpath_ip, xpath_port, xpath_next_disable_condition=None, xpath_next_a=None, timeout=10, ip_port=None):
     # create Proxy Set
     proxies = set()
     # initialize webdriver
@@ -135,22 +135,27 @@ def get_proxies(ip_territory=None, ip_port=None):
 @click.command()
 @click.option('--ip_territory',default=None,type=str)
 @click.option('--ip_port',default=None,type=str)
-def main(ip_territory, ip_port):
+@click.option('--force',is_flag=True)
+def main(ip_territory, ip_port, force=False):
     """ Runs data processing scripts to turn raw data from (../raw) into
         cleaned data ready to be analyzed (saved in ../processed).
     """
 
+    output_filepath = './data/proxies'
+    if not os.path.exists(output_filepath):
+        os.mkdir(output_filepath)
+
     # Round Robin proxy rotation
     if ip_territory:
-        path = './data/proxies/proxies_' + ip_territory + '.csv'
+        path = output_filepath + '/proxies_' + ip_territory + '.csv'
     else:
-        path = './data/proxies/proxies_all.csv'
+        path = output_filepath + '/proxies.csv'
     # Check date of csv creation or modification
     try:
         new_proxies = datetime.fromtimestamp(os.stat(path)[8]) > datetime.now() - timedelta(minutes=30)
     except:
         new_proxies = False
-    if not new_proxies:
+    if not new_proxies or force:
         proxies = get_proxies(ip_territory=ip_territory, ip_port=ip_port)
         proxies = validate_proxies(proxies)
         proxy_df = pd.DataFrame(proxies, columns=['ip'])

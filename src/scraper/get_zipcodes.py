@@ -104,7 +104,7 @@ def main(input_filepath=None, output_filepath='./data/', force=False):
     us_zip_filtered = us.filter_by_rad(rad=rad)
     us_zip_filtered = us_zip_filtered.set_index('zip')
     print(len(us_zip_filtered))
-    return 
+    
     us_zip_filtered.to_csv(output_filepath + 'zip_codes/zipcodes_' + str(rad) + '.csv', encoding='utf-8')
         
 

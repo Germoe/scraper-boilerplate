@@ -3,6 +3,7 @@ from pathlib import Path
 import pandas as pd
 import pprint as pp
 import json
+from bs4 import BeautifulSoup
 
 def walmart(zip_code, path, proxies, timeout, radius):
     '''
@@ -117,6 +118,45 @@ def paul_mitchell(zip_code, path, proxies, timeout, radius):
     except:
         print(response.status_code)
         print(response.text)
+        raise Exception('Failed Request')
+    df.to_csv(path, sep='\t', encoding='utf-8')
+    return True
+
+def hot100(iterator, path, proxies, timeout):
+    '''
+        Add your custom Scrape function here. As an example you can find the scrape function to get Walmart Stores across the US.
+        This example will scrape all Walmarts (does not include Sam's Club). You can fully customize this function.
+        
+        IMPORTANT: It's necessary that you name your function the same as your `target` keyword (e.g. in this case the target=walmart).
+        
+        For return statements make sure you return `False` for a failed or skipped scraping and `True` for a successful scraping.
+    '''
+
+    hits = []
+    this = Path(path)
+    if this.is_file():
+        # Iterator exists
+        return False
+    
+    response = req.get(
+        url='https://www.billboard.com/charts/hot-100/' + iterator
+    )
+
+    try:
+        html = response.text
+        soup = BeautifulSoup(html,'html.parser')
+        date = soup.findAll("button", {"class": "chart-detail-header__date-selector-button"})
+        hot100s = []
+        date = date[0].get_text().strip()
+        dates = [date for i in range(100)]
+        ranks = [rank.get_text().strip() for rank in soup.findAll("div", {"class": "chart-list-item__rank"})]
+        titles = [title.get_text().strip() for title in soup.findAll("span", {"class": "chart-list-item__title-text"})]
+        artists = [artist.get_text().strip() for artist in soup.findAll("div",{"class": "chart-list-item__artist"})]
+        equal_length = len(ranks) == len(titles) == len(artists) == len(dates)
+        if equal_length:
+            df = pd.DataFrame({'date': dates,'rank': ranks, 'title': titles, 'artist': artists})
+    except:
+        print(response.status_code)
         raise Exception('Failed Request')
     df.to_csv(path, sep='\t', encoding='utf-8')
     return True
