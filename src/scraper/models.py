@@ -75,7 +75,7 @@ class Scraper():
         target_filenames = os.listdir(self.dir_path)
         scraped_iterators = [extract_iterator(filename, self.target) for filename in target_filenames]
         self.iterators = iterator_df.loc[~iterator_df['iterator'].isin(scraped_iterators),:]
-        print("There are {} records left to scrape.".format(self.iterators))
+        print("There are {} records left to scrape.".format(len(self.iterators)))
         return self.iterators
     
     def check_proxy(self, timeout, counter=0):
