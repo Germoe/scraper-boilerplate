@@ -15,7 +15,7 @@ def getRandomArbitrary(min, max):
   return random.random() * (max - min) + min
 
 def extract_iterator(filename, target):
-    iterator = re.search('(?<=' + target + '_)' + '[A-Z|a-z|0-9|_]*' + '(?!>.csv)', filename)
+    iterator = re.search('(?<=' + target + '_)' + '[A-Z|a-z|0-9|_|-]*' + '(?!>.csv)', filename)
     if iterator:
         return iterator.group(0)
 
@@ -75,6 +75,7 @@ class Scraper():
         target_filenames = os.listdir(self.dir_path)
         scraped_iterators = [extract_iterator(filename, self.target) for filename in target_filenames]
         self.iterators = iterator_df.loc[~iterator_df['iterator'].isin(scraped_iterators),:]
+        print("There are {} records left to scrape.".format(self.iterators))
         return self.iterators
     
     def check_proxy(self, timeout, counter=0):
@@ -111,15 +112,15 @@ class Scraper():
             self.min_wait_failed = 1
             self.max_wait_failed = 3
         elif speed == 'fast':
-            self.min_wait = 1
-            self.max_wait = 10
+            self.min_wait = 5
+            self.max_wait = 7
             self.min_wait_failed = 3
             self.max_wait_failed = 5
         elif speed == 'regular':
             self.min_wait = 10
-            self.max_wait = 20
-            self.min_wait_failed = 20
-            self.max_wait_failed = 30
+            self.max_wait = 13
+            self.min_wait_failed = 10
+            self.max_wait_failed = 20
         elif speed == 'slow':
             self.min_wait = 20
             self.max_wait = 30

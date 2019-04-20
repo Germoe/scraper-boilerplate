@@ -142,6 +142,17 @@ def hot100(iterator, path, proxies, timeout):
         url='https://www.billboard.com/charts/hot-100/' + iterator
     )
 
+    def get_lyric_links(divs):
+        links = []
+        for div in divs:
+            href = ''
+            try:
+                href = div.find('div',{"class": "chart-list-item__lyrics"}).find('a').get('href')
+            except:
+                pass
+            links.append(href)
+        return links
+
     try:
         html = response.text
         soup = BeautifulSoup(html,'html.parser')
@@ -152,11 +163,13 @@ def hot100(iterator, path, proxies, timeout):
         ranks = [rank.get_text().strip() for rank in soup.findAll("div", {"class": "chart-list-item__rank"})]
         titles = [title.get_text().strip() for title in soup.findAll("span", {"class": "chart-list-item__title-text"})]
         artists = [artist.get_text().strip() for artist in soup.findAll("div",{"class": "chart-list-item__artist"})]
-        equal_length = len(ranks) == len(titles) == len(artists) == len(dates)
+        links = get_lyric_links(soup.findAll("div",{"class": "chart-list-item__text"}))
+        equal_length = len(ranks) == len(titles) == len(artists) == len(dates) == len(links)
         if equal_length:
-            df = pd.DataFrame({'date': dates,'rank': ranks, 'title': titles, 'artist': artists})
+            df = pd.DataFrame({'date': dates,'rank': ranks, 'title': titles, 'artist': artists, 'link': links})
+            df = df.set_index('rank',drop=True)
+            df.to_csv(path, sep='\t', encoding='utf-8')
     except:
         print(response.status_code)
         raise Exception('Failed Request')
-    df.to_csv(path, sep='\t', encoding='utf-8')
     return True
