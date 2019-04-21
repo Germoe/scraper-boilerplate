@@ -39,7 +39,7 @@ scraper: requirements
 	$(PYTHON_INTERPRETER) src/scraper/scrape_data.py $(target) $(scrapetype) $(scrapespeed) $(options)
 
 iterator: requirements
-	$(PYTHON_INTERPRETER) src/scraper/get_iterator.py $(options)
+	$(PYTHON_INTERPRETER) src/scraper/get_iterator.py $(target) $(reps) $(options)
 	
 ## Make Dataset
 data: requirements

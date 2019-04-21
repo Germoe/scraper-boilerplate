@@ -5,34 +5,35 @@ import logging
 from datetime import datetime
 from pathlib import Path
 from dotenv import find_dotenv, load_dotenv
-# Iterator
-from dateutil import rrule
-from datetime import datetime, timedelta
 # Pandas
 import pandas as pd
+import iterator as iter_func
+import inspect
+
+iterator_functions = dict()
+for x in inspect.getmembers(iter_func):
+    if inspect.isfunction(x[1]):
+        key = x[0]
+        val = x[1]
+        iterator_functions[key] = val
 
 @click.command()
-# @click.argument('input_filepath', type=click.Path(exists=True))
-# @click.argument('output_filepath', type=click.Path())
-@click.option('--force',is_flag=True)
-def main(input_filepath=None, output_filepath='./data/', force=False):
+@click.argument('target', type=str)
+@click.argument('reps', default=1, type=int)
+def main(target,reps):
     """ 
     Create your own custom iterators in this function and then run `make iterator` in your console
     """
+    output_filepath='./data/'
     subdir = 'iterators'
-    filename = 'weeks.csv' # Define the filename to the csv file that contains the Zip codes that need to be scraped
+    
+    for i in range(reps):
+        filename = target + '.csv' # Define the filename to the csv file that contains the Zip codes that need to be scraped
+        df = iterator_functions[target](target)
 
-    first_week = datetime(1958, 8, 4)
-    this_week = datetime(2019, 4, 13)
-    weeks_iter = []
-    for dt in rrule.rrule(rrule.WEEKLY, dtstart=first_week, until=this_week):
-        weeks_iter.append(dt)
-
-    df = pd.DataFrame({'iterator':weeks_iter})
-
-    if not os.path.exists(output_filepath + subdir):
-        os.mkdir(output_filepath + subdir)
-    df.to_csv(output_filepath + subdir + '/' + filename, encoding='utf-8')
+        if not os.path.exists(output_filepath + subdir):
+            os.mkdir(output_filepath + subdir)
+        df.to_csv(output_filepath + subdir + '/' + filename, sep='\t', index=False,encoding='utf-8')
 
     logger = logging.getLogger(__name__)
     logger.info('making final data set from raw data')
