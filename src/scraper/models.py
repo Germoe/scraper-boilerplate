@@ -112,13 +112,13 @@ class Scraper():
             self.min_wait_failed = 1
             self.max_wait_failed = 3
         elif speed == 'fast':
-            self.min_wait = 5
-            self.max_wait = 7
+            self.min_wait = 3
+            self.max_wait = 10
             self.min_wait_failed = 3
             self.max_wait_failed = 5
         elif speed == 'regular':
             self.min_wait = 10
-            self.max_wait = 13
+            self.max_wait = 15
             self.min_wait_failed = 10
             self.max_wait_failed = 20
         elif speed == 'slow':
