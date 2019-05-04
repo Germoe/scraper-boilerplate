@@ -118,13 +118,16 @@ def get_proxies(ip_territory=None, ip_port=None):
     # proxy.rudnkh.me/txt
     if not ip_territory:
         url = 'https://proxy.rudnkh.me/txt'
-        if ip_port:
-            proxies_settings = {"http": ip_port, "https": ip_port}
-            response = req.get(url, proxies=proxies_settings)
-        else:
-            response = req.get(url)
-        proxies_rudnkh = set(response.text.split('\n'))
-        proxies.update(proxies_rudnkh)
+        try:
+            if ip_port:
+                proxies_settings = {"http": ip_port, "https": ip_port}
+                response = req.get(url, proxies=proxies_settings)
+            else:
+                response = req.get(url)
+            proxies_rudnkh = set(response.text.split('\n'))
+            proxies.update(proxies_rudnkh)
+        except:
+            print('rudnkh not reachable')
 
     # remove empty values
     proxies.discard('')

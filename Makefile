@@ -34,9 +34,9 @@ proxies: requirements
 	$(PYTHON_INTERPRETER) src/scraper/get_proxies.py $(options)
 
 ## Starts Scraper
-## Example Format make scraper target="hot100" scrapetype="iterator" scrapespeed="regular" options="iter_filepath='./data/iterators/hot100.csv'"
+## Example Format make scraper target="hot100" scrapetype="iterator" scrapespeed="regular" batch=False batch_size=50 iter_filepath='./data/iterators/hot100.csv'
 scraper: requirements
-	$(PYTHON_INTERPRETER) src/scraper/scrape_data.py $(target) $(scrapetype) $(scrapespeed) $(options)
+	$(PYTHON_INTERPRETER) src/scraper/scrape_data.py $(target) $(scrapetype) $(scrapespeed) $(batch) $(batch_size) $(iter_filepath)
 
 iterator: requirements
 	$(PYTHON_INTERPRETER) src/scraper/get_iterator.py $(target) $(reps) $(options)
