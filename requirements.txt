@@ -6,7 +6,7 @@ autopep8==1.4.3
 awscli==1.16.114
 Babel==2.6.0
 backcall==0.1.0
-bleach==3.1.0
+bleach==3.1.4
 botocore==1.12.104
 certifi==2018.11.29
 cffi==1.12.2
