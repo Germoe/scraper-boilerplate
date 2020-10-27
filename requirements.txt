@@ -16,7 +16,7 @@ click-plugins==1.0.4
 cligj==0.5.0
 colorama==0.3.9
 coverage==4.5.2
-cryptography==2.5
+cryptography==3.2
 cycler==0.10.0
 decorator==4.3.2
 descartes==1.1.0
