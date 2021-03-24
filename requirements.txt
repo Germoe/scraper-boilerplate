@@ -85,7 +85,7 @@ PyYAML==3.13
 pyzmq==18.0.0
 qtconsole==4.4.3
 requests==2.21.0
-rsa==3.4.2
+rsa==4.1
 Rtree==0.8.3
 s3transfer==0.2.0
 scipy==1.2.1
